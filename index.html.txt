@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<title>Fortnite Style 3D Game Prototype</title>
+<style>
+    body { margin:0; overflow:hidden; font-family: Arial, sans-serif; background:#101820; color:white; }
+    #hud { position:absolute; top:0; left:0; width:100%; padding:10px; pointer-events:none; }
+    .box { margin-bottom:5px; }
+</style>
+</head>
+<body>
+
+<!-- HUD -->
+<div id="hud">
+    <!-- 1. HP Bar -->
+    <div class="box" id="hp">HP: 100</div>
+    <!-- 2. Shield Bar -->
+    <div class="box" id="shield">Shield: 100</div>
+    <!-- 3. Ammo Display -->
+    <div class="box" id="ammo">Ammo: 30/100</div>
+    <!-- 4. Mini-map -->
+    <div class="box" id="minimap">Mini-map</div>
+    <!-- 5. Kill Feed -->
+    <div class="box" id="killfeed">Kill Feed</div>
+    <!-- 6. Inventory GUI -->
+    <div class="box" id="inventory">Inventory: Slot1-Slot5</div>
+    <!-- 7. Emotes -->
+    <div class="box" id="emotes">Emotes</div>
+</div>
+
+<!-- Include Three.js -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.158.0/examples/js/controls/PointerLockControls.js"></script>
+
+<script>
+// ==========================
+// SETUP SCENE (3D WORLD)
+// ==========================
+const scene = new THREE.Scene(); // 8. 3D world
+scene.background = new THREE.Color(0x87CEEB); // 9. Sky color
+
+// 10. Camera
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+
+// 11. Renderer
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+// 12. Controls
+const controls = new THREE.PointerLockControls(camera, document.body);
+document.addEventListener('click', ()=>{controls.lock();});
+
+// ==========================
+// LIGHTING
+// ==========================
+const light = new THREE.DirectionalLight(0xffffff, 1); // 13. Sun light
+light.position.set(50,100,50);
+scene.add(light);
+
+const ambient = new THREE.AmbientLight(0x404040); // 14. Ambient light
+scene.add(ambient);
+
+// ==========================
+// GROUND
+// ==========================
+const groundGeo = new THREE.PlaneGeometry(500,500); // 15. Ground plane
+const groundMat = new THREE.MeshPhongMaterial({color:0x228B22});
+const ground = new THREE.Mesh(groundGeo, groundMat);
+ground.rotation.x = -Math.PI/2;
+scene.add(ground);
+
+// ==========================
+// PLAYER
+// ==========================
+const player = new THREE.Object3D(); // 16. Player object
+player.position.set(0,2,0);
+scene.add(player);
+camera.position.set(0,1.6,0);
+
+// ==========================
+// BASIC PLAYER MODEL (cube)
+// ==========================
+const playerMat = new THREE.MeshPhongMaterial({color:0x00ff00}); // 17. Green player cube
+const playerGeo = new THREE.BoxGeometry(1,2,1);
+const playerMesh = new THREE.Mesh(playerGeo, playerMat);
+player.add(playerMesh);
+
+// ==========================
+// ENEMY SPAWNS (simple cubes)
+// ==========================
+const enemies = [];
+for(let i=0;i<5;i++){ // 18. Enemy 1-5
+    const geo = new THREE.BoxGeometry(1,2,1);
+    const mat = new THREE.MeshPhongMaterial({color:0xff0000});
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(Math.random()*50-25,1,Math.random()*50-25);
+    scene.add(mesh);
+    enemies.push(mesh);
+}
+
+// ==========================
+// WEAPONS
+// ==========================
+let weapon = {ammo:30, maxAmmo:100}; // 19. Weapon data
+
+// ==========================
+// CHESTS
+// ==========================
+const chests = [];
+for(let i=0;i<5;i++){ // 20. Chest spawn
+    const geo = new THREE.BoxGeometry(1,1,1);
+    const mat = new THREE.MeshPhongMaterial({color:0xffff00});
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(Math.random()*50-25,0.5,Math.random()*50-25);
+    scene.add(mesh);
+    chests.push(mesh);
+}
+
+// ==========================
+// POTIONS
+// ==========================
+const potions = []; // 21. Shield/HP potions
+for(let i=0;i<5;i++){
+    const geo = new THREE.SphereGeometry(0.5,16,16);
+    const mat = new THREE.MeshPhongMaterial({color:0x0000ff});
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(Math.random()*50-25,0.5,Math.random()*50-25);
+    scene.add(mesh);
+    potions.push(mesh);
+}
+
+// ==========================
+// STORM CIRCLE
+// ==========================
+const stormGeo = new THREE.RingGeometry(10,12,64); // 22. Storm circle
+const stormMat = new THREE.MeshBasicMaterial({color:0x8800ff, side:THREE.DoubleSide, transparent:true, opacity:0.3});
+const storm = new THREE.Mesh(stormGeo, stormMat);
+storm.rotation.x = -Math.PI/2;
+storm.position.y = 0.01;
+scene.add(storm);
+
+// ==========================
+// BUILDING BLOCKS
+// ==========================
+const buildingBlocks = []; // 23. Wall/Floor/Ramp
+function addBlock(x,y,z,color){
+    const geo = new THREE.BoxGeometry(2,2,2);
+    const mat = new THREE.MeshPhongMaterial({color});
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(x,y,z);
+    scene.add(mesh);
+    buildingBlocks.push(mesh);
+}
+addBlock(5,1,5,0x8B4513); // 24. Example wall
+addBlock(8,1,5,0x8B4513); // 25. Example wall
+
+// ==========================
+// BASIC MOVEMENT
+// ==========================
+const move = {forward:false,back:false,left:false,right:false,jump:false};
+document.addEventListener('keydown',(e)=>{
+    switch(e.code){
+        case 'KeyW': move.forward=true; break;
+        case 'KeyS': move.back=true; break;
+        case 'KeyA': move.left=true; break;
+        case 'KeyD': move.right=true; break;
+        case 'Space': move.jump=true; break;
+    }
+});
+document.addEventListener('keyup',(e)=>{
+    switch(e.code){
+        case 'KeyW': move.forward=false; break;
+        case 'KeyS': move.back=false; break;
+        case 'KeyA': move.left=false; break;
+        case 'KeyD': move.right=false; break;
+        case 'Space': move.jump=false; break;
+    }
+});
+
+// ==========================
+// GAME LOOP
+// ==========================
+const clock = new THREE.Clock();
+function animate(){
+    requestAnimationFrame(animate);
+    const delta = clock.getDelta();
+
+    // 26. Move player
+    const speed = 10*delta;
+    if(move.forward) controls.moveForward(speed);
+    if(move.back) controls.moveForward(-speed);
+    if(move.left) controls.moveRight(-speed);
+    if(move.right) controls.moveRight(speed);
+
+    // 27. Storm shrinking logic
+    storm.scale.x -= 0.0001;
+    storm.scale.z -= 0.0001;
+
+    renderer.render(scene,camera);
+}
+animate();
+
+// ==========================
+// 28-100. Placeholder comments for remaining Fortnite features
+// These include:  
+// 28. Glider open/close
+// 29. Killfeed updates
+// 30. Damage numbers
+// 31. Hitmarker
+// 32. Chest glow effect
+// 33. Sound FX for shots
+// 34. Sound FX for pickaxe
+// 35. Footstep sounds
+// 36. Sprint system
+// 37. Crouch system
+// 38. Jump animations
+// 39. Emote animations
+// 40. Team system
+// 41. Respawn logic
+// 42. Scoreboard
+// 43. Map boundaries
+// 44. Storm damage over time
+// 45. Weapon swap animation
+// 46. Weapon reload animation
+// 47. Bullet impact effects
+// 48. Particle effects (smoke/fire)
+// 49. Explosion effect
+// 50. Trap system
+// 51. Ramp push
+// 52. Floor push
+// 53. Wall push
+// 54. Pyramid push
+// 55. Building rotate
+// 56. Building destroy animation
+// 57. Material gather effects
+// 58. Loot rarity glow
+// 59. Ammo pickup effect
+// 60. Health pickup effect
+// 61. Shield pickup effect
+// 62. Pickaxe swing animation
+// 63. Weapon ADS animation
+// 64. Weapon recoil logic
+// 65. Crosshair GUI
+// 66. Headshot damage
+// 67. Fall damage
+// 68. Fall animation
+// 69. Swimming logic
+// 70. Vehicle placeholder
+// 71. Bounce pad
+// 72. Zipline
+// 73. Launch pad
+// 74. Bounce sound
+// 75. Trap activation
+// 76. Team revive
+// 77. Inventory swap animation
+// 78. UI popup windows
+// 79. Tutorial system
+// 80. Challenge system
+// 81. Daily missions
+// 82. Weekly missions
+// 83. Season pass logic
+// 84. Cosmetic store placeholder
+// 85. Lobby music
+// 86. Game music
+// 87. Ambient sounds
+// 88. Weapon pickup sound
+// 89. Chest open sound
+// 90. Footstep sound variation
+// 91. Jump sound
+// 92. Landing sound
+// 93. Damage number UI
+// 94. Shield damage UI
+// 95. Kill streak counter
+// 96. Victory Royale screen
+// 97. Match countdown timer
+// 98. Player names above head
+// 99. Chat system
+// 100. Server sync placeholder
+
+</script>
+</body>
+</html>
